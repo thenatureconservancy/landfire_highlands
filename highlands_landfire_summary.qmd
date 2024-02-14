@@ -1,0 +1,368 @@
+---
+title: "Overview of LANDFIRE outputs for the Highlands Region"
+author: "Randy Swaty and Sarah Hagen"
+format: 
+    html:
+      toc: true
+      embed-resources: true
+---
+
+## Introduction to process
+
+Principles 6 & 9 of the US Forest Stewardship Council Standards call for, among other things, a look at ecosystems past and present across the landscape, plus an assessment of historical vs. current succession classes.  This work can be aided by [LANDFIRE](https://landfire.gov/) data and models, as LANDFIRE produces applicable datasets that cover 'all lands' in the US.  For example, LANDFIRE Produces a dataset called ['Biophysical Settings' (BpS)](https://landfire.gov/bps.php) that essentially represents the 'habitat envelop' for the various ecosystems of the US.  The BpS spatial data is accompanied by [descriptions and models](https://landfire.gov/bps-models.php) that capture historical disturbance regimes and estimate how much of each succession class (per BpS) would have been on the landscape historically (termed 'reference conditions').  Typically, analysts compare these estimated succession class amounts past and present per BpS.  Additionally, the LANDFIRE [Existing Vegetation Type (EVT)](https://landfire.gov/evt.php) can be used to characterize the landscape currently.
+
+In a review of the base datasets for the Highlands project area, experts noted a relative over-mapping of 'mesic' ecosystems in the BpS data, and that the EVT data not only captured current conditions relatively well, but also captured what is locally known about the historical landscape.  Based on this feedback, Sarah Hagen, Spatial Ecologist with The Nature Conservancy's (TNC) LANDFIRE team conducted the GIS and data wrangling steps necessary to create and implement a custom process that uses the EVT data as the 'habitat envelop' of each ecosystem and the reference conditions from the BpS products to assess past vs. current amounts of succession classes.  Randy Swaty (TNC's LANDFIRE team) wrote up these results and created the charts.  Reviewed by Jim Smith (TNC's LANDFIRE team).  
+
+
+## Current Landscape
+
+
+```{r include=FALSE, echo=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+
+```
+
+LANDFIRE's [Existing Vegetation Type, Cover and Height](https://landfire.gov/vegetation.php){target="blank"} datasets describe current vegetation conditions.
+
+-   Existing Vegetation Type (EVT) - represents the current distribution of the terrestrial ecological systems classification, developed by NatureServe for the western hemisphere, through 2016.
+-   Existing Vegetation Cover (EVC) - represents the vertically projected percent cover of the live canopy layer for a 30-m cell.
+-   Existing Vegetation Height (EVH) - represents the average height of the dominant vegetation for a 30-m cell.
+
+[Read more about LANDFIRE Vegetation Products](https://landfire.gov/vegetation.php){target="blank"}
+
+### Most Prevalent Existing Vegetation Types
+
+Below we map and chart the top 6 EVTs, with the plantation and ruderal forest type lumped together.  These types cumulativily add up to more than 90% of the landscape.
+<br>
+
+![](images/evt.jpg){width="100%"}
+
+
+```{r evt chart, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=10}
+evtname <- read.csv(file = "data/evt_10.csv") %>%
+  arrange(desc(percent))
+
+evtname$evt <- factor(evtname$evt, levels = evtname$evt[order(evtname$percent)])
+
+
+# plot
+evtChart <-
+  ggplot(data = evtname, aes(x = evt, y = percent)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Top Existing Vegetation Types",
+    caption = "Data from landfire.gov",
+    x = "",
+    y = "Percent of landscape") +
+  scale_x_discrete(limits = rev(evtname$EVT_NAME),
+                   labels = function(x) str_wrap(x, width = 18)) +
+  coord_flip() +
+  theme_bw(base_size = 14)
+
+
+
+evtChart
+```
+
+
+### Existing Vegetation Cover
+
+The Existing Vegetation Cover (EVC) map is a visual representation of EVC classifications across the subregion. The chart below the map provides a breakdown of each vegetation cover classification and their relative distribution across the forest.
+
+![](images/evc.jpg){width="100%"} <br> <br>
+
+```{r evc chart, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=10}
+evcname <- read.csv("data/evc_aoi_attributes.csv")
+
+# create "type" column based on conditions
+evcname <- evcname %>% mutate(type = if_else(VALUE %in% 11, "Open Water",
+                                             if_else(VALUE %in% 12, "Snow / Ice",
+                                                     if_else(VALUE %in% c(13:25), "Developed",
+                                                             if_else(VALUE %in% 31, "Barren",
+                                                                     if_else(VALUE %in% c(60:70), "Agriculture",
+                                                                             if_else(VALUE %in% 32, "Quarries",
+                                                                                     if_else(VALUE %in% 100, "Sparse Vegetation",
+                                                                                             if_else(VALUE %in% c(101:199), "Tree",
+                                                                                                     if_else(VALUE %in% c(201:299), "Shrub",
+                                                                                                             if_else(VALUE %in% c(301:399), "Herb",
+                                                                                                                     "Other")))))))))))
+
+# create reverse substr() function
+revSubstr <- function(x, start, stop) {
+  x <- strsplit(x, "")
+  sapply(x, 
+         function(x) paste(rev(rev(x)[start:stop]), collapse = ""), 
+         USE.NAMES = FALSE)  }
+
+# create cover column based on 2nd and 3rd to last values of classname
+# if "Other" type, make 0
+evcname <- evcname %>% mutate(cover = as.numeric(if_else(VALUE > 100,
+                                                         revSubstr(evcname$CLASSNAMES, start = 2, stop = 3),
+                                                         "0")))
+
+# create bin breaks for grouping
+breaks <- seq(0, 100, 10)
+# create intervals for grouping and summarize
+# also create factor order for "type"
+evcgroup <- evcname %>%
+  mutate(interval = cut(cover,
+                        breaks, 
+                        include.lowest = TRUE, 
+                        right = T,
+                        labels = c("0-9", "10-19", "20-29", "30-39", "40-49", "50-59", "60-69", "70-79", 
+                                   "80-89", "90-100")),
+         type = factor(type, levels = c("Tree", "Shrub", "Herb", "Open Water", "Snow / Ice", "Developed", "Agriculture", "Sparse Vegetation", "Barren", "Quarries", "Other"))) %>%
+  group_by(type, interval) %>%
+  summarize(Freq = sum(Freq),
+            ACRES = sum(ACRES),
+            REL_PERCENT = sum(REL_PERCENT))
+
+# add label and legend names based on condition
+evcgroup <- evcgroup %>% mutate(label = if_else(type %in% c("Tree", "Shrub", "Herb"),
+                                                paste0(type, " Cover = ", interval, "%"), as.character(type)),
+                                legend = if_else(type %in% c("Tree", "Shrub", "Herb", "Open Water"),
+                                                 type, as.factor("Other")))
+
+# turn current label order to factors
+evclabel.list <- evcgroup$label
+evcgroup <- evcgroup %>% mutate(label = fct_rev(factor(label, evclabel.list)))
+
+
+
+# create factor level colors for legend (original from Myles)
+## cols <- c("Tree" = "#196F3D", "Shrub" = "#229954", "Herb" = "#52BE80", "Open Water" = "#7FB3D5",
+##          "Other" = "#808B96")
+
+# join in custom cols column to color bars by specific label
+
+evc_group_cols <- read.csv("data/evc_group_cols.csv")
+
+evcgroup <- left_join(evcgroup, evc_group_cols, by = "label")
+
+evcgroup$label <- factor(evcgroup$label, levels = rev(evcgroup$label))
+
+evcgroup <- evcgroup %>%
+  filter(REL_PERCENT > 0.01)
+
+# plot
+evcChart <-
+  ggplot(data = evcgroup, aes(x = label, y = REL_PERCENT, fill = colors)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Existing Vegetation Cover",
+    caption = "Data from landfire.gov",
+    x = "Amount of landscape",
+    y = "Most dominant lifeform") +
+  scale_fill_identity() +
+  coord_flip() +
+  theme_classic(base_size = 12)+
+  theme(legend.position = "none") 
+
+
+evcChart
+
+
+```
+
+<br>
+
+### Existing Vegetation Height
+
+The Existing Vegetation Height (EVH) map showcases EVH across the forest. The chart below the map provides the percentage of the landscape represented by each EVH height.
+
+![](images/evh.jpg){width="100%"} <br>
+
+```{r evh chart, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=10}
+
+# load evh attribute table
+evhname <- read.csv(file = "data/evh_aoi_attributes.csv")
+
+
+# create "type" column based on conditions
+evhname <- evhname %>% mutate(type = if_else(VALUE %in% 11, "Open Water",
+                                             if_else(VALUE %in% 12, "Snow / Ice",
+                                                     if_else(VALUE %in% c(13:25), "Developed",
+                                                             if_else(VALUE %in% 31, "Barren",
+                                                                     if_else(VALUE %in% c(60:70), "Agriculture",
+                                                                             if_else(VALUE %in% 32, "Quarries",
+                                                                                     if_else(VALUE %in% 100, "Sparse Vegetation",
+                                                                                             if_else(VALUE %in% c(101:199), "Tree",
+                                                                                                     if_else(VALUE %in% c(201:299), "Shrub",
+                                                                                                             if_else(VALUE %in% c(301:399), "Herb",
+                                                                                                                     "Other"))))))))))) %>%
+  mutate(height_m = if_else(type %in% "Tree", (VALUE -100),
+                            if_else(type %in% "Shrub", ((VALUE - 200) / 10),
+                                    if_else(type %in% "Herb", ((VALUE - 300) / 10), 0))) %>%
+           as.character() %>% as.numeric())
+
+# create bin breaks for grouping
+breaks <- c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100)
+
+# create intervals for grouping and summarize
+# also create factor order for "type"
+evhgroup <- evhname %>%
+  mutate(interval = cut(height_m,
+                        breaks, 
+                        include.lowest = TRUE, 
+                        right = F,
+                        labels = c("0", "0.1-0.2", "0.2-0.3", "0.3-0.4" ,"0.4-0.5", "0.5-0.6", "0.6-0.7", "0.7-0.8", "0.8-0.9", "0.9-1.0", "1-5", "5-10", "10-15", "15-20", "20-25", "25-30", "30-35", "35-40", "40-45", "45-50", "50-55", "55-60", "60-65", "65-70", "70-75", "75-80", "80-85", "85-90", "90-95", "95-100")),
+         type = factor(type, levels = c("Tree", "Shrub", "Herb", "Open Water", "Snow / Ice", "Developed", "Agriculture", "Sparse Vegetation", "Barren", "Quarries", "Other"))) %>%
+  group_by(type, interval) %>%
+  summarise(VALUE = sum(VALUE),
+            ACRES = sum(ACRES),
+            REL_PERCENT = sum(REL_PERCENT))
+
+
+
+# add label and legend names based on condition
+evhgroup <- evhgroup %>% mutate(label = if_else(type %in% c("Tree", "Shrub", "Herb"),
+                                                paste0(type, " Height = ", interval, " m"), as.character(type)),
+                                legend = if_else(type %in% c("Tree", "Shrub", "Herb", "Open Water"),
+                                                 type, as.factor("Other")))
+# turn current label order to factors
+evhlabel.list <- evhgroup$label
+evhgroup <- evhgroup %>% mutate(label = fct_rev(factor(label, evhlabel.list)))
+
+# create factor level colors for legend
+##cols <- c("Tree" = "#196F3D", "Shrub" = "#229954", "Herb" = "#52BE80", "Open Water" = "#7FB3D5","Other" = "#808B96")
+
+# join in custom cols column to color bars by specific label
+
+evh_group_cols <- read.csv("data/evh_group_cols.csv")
+
+evhgroup <- left_join(evhgroup, evh_group_cols, by = "label")
+
+evhgroup$label <- factor(evhgroup$label, levels = rev(evhgroup$label))
+
+evhgroup <- evhgroup %>%
+  filter(REL_PERCENT > 0.01)
+
+# plot
+evhChart <-
+ggplot(data = evhgroup, aes(x = label, y = REL_PERCENT, fill = colors)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Existing Vegetation Height",
+    caption = "Data from landfire.gov",
+    x = "",
+    y = "percent of landscape") +
+  scale_fill_identity() +
+  coord_flip() +
+  theme_classic(base_size = 12)+
+  theme(legend.position = "none")
+
+evhChart
+
+
+
+# plot with original color scheme
+# evhChart <-
+# ggplot(data = evhgroup, aes(x = label, y = REL_PERCENT, fill = legend)) +
+#   geom_bar(stat = "identity") +
+#   labs(
+#     title = "Existing Vegetation Height",
+#     subtitle = "landscape_name",
+#     caption = "Data from landfire.gov.",
+#     x = "",
+#     y = "percent of landscape") +
+#   scale_fill_manual(values = cols, name = "") +
+#   coord_flip() +
+#   theme_bw()
+# 
+# evhChart
+
+
+
+
+
+```
+
+
+
+
+## Succession Classes Past and Present for the Three Most Dominant EVTs
+
+Below are charts illustrating past (or 'reference') and current amounts of succession classes for the 3 most dominant EVTs in the Highlands Project Area. We restrict the analysis to these three as they cover ~80% of the area, and the other types have relatively small extents.  Assessing succession class representation at too small of an area may introduce 'artificially' high or low values.  
+
+
+### Southern Appalachian Oak Forest
+
+This type is described by NatureServe:
+
+> This system consists of predominantly dry-mesic (to dry) forests occurring on open and exposed topography at lower to mid elevations in the Southern Blue Ridge and Southern Ridge and Valley ecoregions. This is the upland forest that characterizes much of the lower elevations of these areas. The geology and soils can range from acidic to circumneutral or basic, and the vegetation varies accordingly. Soils are usually deep residual soils but are often rocky. Some shallow soils and colluvium may be present locally, but shallow soil environments are more extreme and have more pine.
+
+*Quoted from relevant [NatureServe Explorer](https://explorer.natureserve.org/Taxon/ELEMENT_GLOBAL.2.722792/Southern_Appalachian_Oak_Forest) site.*
+
+LANDFIRE notes that historically this type would have had frequent surface fires (< 25% top kill, ~15yrs return interval, varies based on succession class), and relatively rare mixed (25-75% top kill, ~140 years) and replacement fires (> 75% top kill, ~600 years).  Additional disturbances included ice and wind events (50+ year return interval, depending on succession class), and insect attack (70+ return interval, depending on succession class.
+
+
+
+<br>
+
+
+```{r scls chart, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=6}
+
+aoi_ref_cur <- read.csv("data/evt_scls_3.csv")
+
+## wrangle data, get top groups (BpSs)
+
+evt_scls_saof <- aoi_ref_cur %>%
+  dplyr::select(c("evt", "ref_label",  "current_percent", "ref_percent")) %>%
+  pivot_longer(
+    cols = c(`ref_percent`, `current_percent`), 
+    names_to = "ref_cur", 
+    values_to = "percent") %>%
+  filter(evt == "Southern Appalachian Oak Forest" )
+
+
+# order classes
+evt_scls_saof$ref_label <- factor(evt_scls_saof$ref_label, levels = c(
+  "UN",
+  "E",
+  "D",
+  "C",
+  "B",
+  "A"))
+
+sclasplot <-
+  ggplot(evt_scls_saof, aes(fill = factor(ref_cur), y = percent, x = ref_label)) + 
+  geom_col(width = 0.8, position = position_dodge()) +
+  coord_flip() +
+  scale_x_discrete(limits = (levels(evt_scls_saof$ref_label))) +
+  labs(
+    title = "Succession Classes past and present",
+    subtitle = "Southern Appalachian Oak Forest",
+    caption = "Data from landfire.gov.",
+    x = "",
+    y = "Percent") +
+  theme_minimal(base_size = 12) +
+  theme(plot.caption = element_text(hjust = 0, face = "italic"), #Default is hjust=1
+        plot.title.position = "plot", #NEW parameter. Apply for subtitle too.
+        plot.caption.position =  "plot") +
+  scale_fill_manual(values = c("#3d4740", "#32a852" ), # present (grey), historical (green)
+                    name = " ", 
+                    labels = c("Present",
+                               "Past")) +
+    theme(panel.spacing = unit(.05, "lines"),
+        panel.border = element_rect(color = "black", fill = NA, size = 1), 
+        strip.background = element_rect(color = "black", size = 1))
+
+sclasplot
+
+```
+
+
+**Succession Class Short Descriptions**
+
+* A = all herbaceous and shrub vegetation, trees shorter than 5M, 0-100% canopy closure.  Indicator species are Chestnut, White and Black Oaks, plus American Chestnut.  
+* B = trees 5-10M, with 71 - 100% canopy closure.  Indicator species are Chestnut and Northern Red Oaks, plus American Chestnut.
+* C = trees 5-10M, 0 - 70% canopy closure.  Indicator species are Chestnut and White Oaks, American Chestnut and Mountain Laurel.
+* D = trees > 10M, 0 - 70% canopy closure.  Indicator species are Chestnut and White Oaks, American Chestnut and Mountain Laurel.
+* E = trees > 10M, 71 - 100% canopy closure. Indicator species are Chestnut and Northern Red Oaks, American Chestnut and Eastern White Pine.  
+
+*No Uncharacteristic Native conditions were indicated in the succession class rules.*
+
+**Summary of succession classes past and present**
+
+* Classes A, B and C are substantially underrepresented on today's landscape.
+* 
