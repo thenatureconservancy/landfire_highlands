@@ -32,13 +32,16 @@ LANDFIRE's [Existing Vegetation Type, Cover and Height](https://landfire.gov/veg
 
 ### Most Prevalent Existing Vegetation Types
 
-Below we map and chart the top 6 EVTs, with the plantation and ruderal forest type lumped together.  These types cumulativily add up to more than 90% of the landscape.
+Below we map and chart the top 6 EVTs, with the plantation and ruderal forest type lumped together.  These types cumulatively add up to more than 90% of the landscape.
+
 <br>
 
 ![](images/evt.jpg){width="100%"}
+<br>
+<br>
 
 
-```{r evt chart, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=10}
+```{r evt chart, echo=FALSE, message=FALSE, warning=FALSE, fig.width=11, fig.height=5}
 evtname <- read.csv(file = "data/evt_10.csv") %>%
   arrange(desc(percent))
 
@@ -65,13 +68,19 @@ evtChart
 ```
 
 
+***
+
 ### Existing Vegetation Cover
 
 The Existing Vegetation Cover (EVC) map is a visual representation of EVC classifications across the subregion. The chart below the map provides a breakdown of each vegetation cover classification and their relative distribution across the forest.
 
-![](images/evc.jpg){width="100%"} <br> <br>
+<br>
 
-```{r evc chart, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=10}
+![](images/evc.jpg){width="100%"} 
+*See chart below for colors/legend.*
+<br>
+
+```{r evc chart, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=9}
 evcname <- read.csv("data/evc_aoi_attributes.csv")
 
 # create "type" column based on conditions
@@ -151,11 +160,11 @@ evcChart <-
   labs(
     title = "Existing Vegetation Cover",
     caption = "Data from landfire.gov",
-    x = "Amount of landscape",
-    y = "Most dominant lifeform") +
+    x = "",
+    y = "Percent of Landscape") +
   scale_fill_identity() +
   coord_flip() +
-  theme_classic(base_size = 12)+
+  theme_classic(base_size = 14)+
   theme(legend.position = "none") 
 
 
@@ -166,13 +175,17 @@ evcChart
 
 <br>
 
+***
+
 ### Existing Vegetation Height
 
 The Existing Vegetation Height (EVH) map showcases EVH across the forest. The chart below the map provides the percentage of the landscape represented by each EVH height.
 
-![](images/evh.jpg){width="100%"} <br>
+![](images/evh.jpg){width="100%"} 
+*See chart below for colors/legend.*
+<br>
 
-```{r evh chart, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=10}
+```{r evh chart, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=9}
 
 # load evh attribute table
 evhname <- read.csv(file = "data/evh_aoi_attributes.csv")
@@ -245,10 +258,10 @@ ggplot(data = evhgroup, aes(x = label, y = REL_PERCENT, fill = colors)) +
     title = "Existing Vegetation Height",
     caption = "Data from landfire.gov",
     x = "",
-    y = "percent of landscape") +
+    y = "Percent of Landscape") +
   scale_fill_identity() +
   coord_flip() +
-  theme_classic(base_size = 12)+
+  theme_classic(base_size = 14)+
   theme(legend.position = "none")
 
 evhChart
@@ -278,7 +291,11 @@ evhChart
 ```
 
 
+<br>
 
+***
+
+<br>
 
 ## Succession Classes Past and Present for the Three Most Dominant EVTs
 
@@ -295,7 +312,7 @@ This type is described by NatureServe:
 
 LANDFIRE notes that historically this type would have had frequent surface fires (< 25% top kill, ~15yrs return interval, varies based on succession class), and relatively rare mixed (25-75% top kill, ~140 years) and replacement fires (> 75% top kill, ~600 years).  Additional disturbances included ice and wind events (50+ year return interval, depending on succession class), and insect attack (70+ return interval, depending on succession class.
 
-
+To download full BpS description of this type click [here.](highlands_top3_bpss/13150_48_53_57_59_61.docx)
 
 <br>
 
@@ -364,5 +381,6 @@ sclasplot
 
 **Summary of succession classes past and present**
 
-* Classes A, B and C are substantially underrepresented on today's landscape.
-* 
+* Classes A, B and C are substantially underrepresented on today's landscape compared to the past.
+* Current amount of class D is relatively close to reference amount.
+* Class D is substantially over-represented opn the landscape today compared to the past.
